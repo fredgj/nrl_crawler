@@ -1,25 +1,57 @@
 import bs4
 import requests
 
-data = requests.get('http://www.nrl.com/telstrapremiership/nrlladder/tabid/10251/default.aspx')
 
-soup = bs4.BeautifulSoup(data.text, 'html.parser')
+class Team:
+    def __init__(self, rank, name, played, won, drawn, lost, bye, gf, ga, pts):
+            self.rank = rank
+            self.name = name
+            self.played = played
+            self.won = won
+            self.drawn = drawn
+            self.lost = lost
+            self.bye = bye
+            self.gf = gf
+            self.ga = ga
+            self.diff = str(int(gf)-int(ga))
+            self.pts = pts
 
-ladder = soup.find('table',{'id':'LadderGrid'})('tbody')
+    def __str__(self):
+        str_format = '{:>3} {:<12} {:>2} {:>2} {:>2} {:>2} {:>2} {:>2} {:>2} {:>3} {:>2}'
+        return str_format.format(self.rank, self.name, self.played, self.won,
+                                 self.drawn, self.lost, self.bye, self.gf,
+                                 self.ga, self.diff, self.pts)
 
-for l in ladder[0].findAll('tr'):
-    rank, club, played, won, drawn, lost, bye, goals_f, goals_a, difference, _,_, pts,_,_ = l.findChildren()
-    rank = rank.get_text()
-    club = club.get_text()
-    played = played.get_text()
-    won = won.get_text()
-    drawn = drawn.get_text()
-    lost = lost.get_text()
-    bye = bye.get_text()
-    goals_f = goals_f.get_text()
-    goals_a = goals_a.get_text()
-    difference = difference.get_text()
-    pts = pts.get_text()
-    print(rank, club, played, won, drawn, lost, bye, goals_f, goals_a, difference, pts)
 
+class Ladder:
+    def __init__(self, ladder):
+        self.ladder = [l for l in ladder]
+
+    def __iter__(self):
+        yield from self.ladder
+
+    def __str__(self):
+        str_format = '{:>19} {:>2} {:>2} {:>2} {:>2} {:>2} {:>2} {:>3} {:>2}'
+        header = str_format.format('P','W','D','L','B','F','A','+/-','pts')
+        return header + '\n' + '\n'.join(str(team) for team in self.ladder)
+
+
+def generate_ladder():
+    data = requests.get('http://www.nrl.com/telstrapremiership/nrlladder/tabid/10251/default.aspx')
+    soup = bs4.BeautifulSoup(data.text, 'html.parser')
+    ladder = soup.find('table',{'id':'LadderGrid'})('tbody')[0]
+
+    for l in ladder.findAll('tr'):
+        (rank, club, played, won, drawn, 
+        lost, bye, gf, ga, 
+        _, _ , _, pts, _, _) = (c.get_text() for c in l.findChildren())
+        
+        team = Team(rank, club, played, won, drawn, lost, bye, gf, ga, pts)
+
+        yield team
+
+
+ladder = Ladder(generate_ladder())
+
+print(ladder)
 
