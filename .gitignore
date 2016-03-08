@@ -1,0 +1,8 @@
+*.pyc
+*.json
+__pycache__
+.project
+bin/
+include/
+lib/
+
