@@ -1,26 +1,6 @@
 import bs4
 import requests
-from threading import Thread
-from functools import wraps
-
-
-def threaded(func):
-    def wrapped_func(ret_val, *args, **kwargs):
-        """Calls the function and appends the return value to ret_val"""
-        val = func(*args, **kwargs)
-        ret_val.append(val)
-    
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        """Creates a new thread with wrapped_func, adds an empty list to the
-           thread for return value. Return a running thread"""
-        ret_val = []
-        thread = Thread(target=wrapped_func, args=(ret_val,)+args, kwargs=kwargs)
-        thread.ret_val = ret_val
-        thread.start()
-        return thread
-
-    return wrapper
+import asyncio
 
 
 class Team:
@@ -47,7 +27,7 @@ class Team:
 class Ladder:
     def __init__(self, league, ladder, offset):
         self.league = league
-        self.ladder = [l for l in ladder]
+        self.ladder = ladder
         self.offset = offset
 
     def __iter__(self):
@@ -56,69 +36,63 @@ class Ladder:
     def __str__(self):
         str_format = '{:>%s} {:>2} {:>2} {:>2} {:>3} {:>3} {:>3} {:>2}\n' % (self.offset)
         header = str_format.format('P','W','D','L','F','A','+/-','pts')
-        return self.league +'\n' +\
-               header +\
-               '\n'.join(str(team) for team in self.ladder)
+        teams = '\n'.join(str(team) for team in self.ladder)
+        
+        return '{}\n{}\n{}\n'.format(self.league,
+                        header,
+                        teams)
 
 
 def nrl_selector(attrs):
-    (rank, club, played, won, drawn, 
-    lost, _, gf, ga, 
-    _, _ , _, pts, _, _) = (attr.get_text() for attr in attrs)
+    (rank, club, played, won, drawn, lost, _, 
+    gf, ga, _, _ , _, pts, _, _) = (attr.get_text() for attr in attrs)
         
     team = Team(rank, club, played, won, drawn, lost, gf, ga, pts, 12)
     return team
 
 
-def super_league_selector(attrs):
-    rank,_,_,club,played,won,lost,drawn,gf,ga,_,pts = (attr.get_text() for attr in attrs)
+def sl_selector(attrs):
+    (rank, _, _, club, played, won, lost, drawn, 
+    gf, ga, _, pts) = (attr.get_text() for attr in attrs)
     team = Team(rank+'.',club,played,won,drawn,lost,gf,ga,pts, 20)
     return team
 
 
+async def fetch(url, league):
+    loop = asyncio.get_event_loop()
+    future = loop.run_in_executor(None,requests.get, url)
+    response = await future
+    return response.text, league
 
-@threaded
-def generate_ladder(url, tag, attr, league):
-    data = requests.get(url)
-    soup = bs4.BeautifulSoup(data.text, 'html.parser')
-    ladder = soup.find(tag,attr)('tbody')[0]('tr')
-    teams = []
+
+def generate_ladder(data, attr, league):
+    soup = bs4.BeautifulSoup(data, 'html.parser')
+    ladder = soup.find('table', attr)('tbody')[0]('tr')
+    selector = nrl_selector if league == 'NRL' else sl_selector
     for l in ladder:
-        if league == 'nrl':
-            team = nrl_selector(l.findChildren())
-        else:
-            team = super_league_selector(l.findChildren())
-        teams.append(team)
-    return teams
+        team = selector(l.findChildren())
+        yield team
 
 
-#ladder = Ladder(generate_ladder())
-#
-#print(ladder)
-url = 'http://www.nrl.com/telstrapremiership/nrlladder/tabid/10251/default.aspx'
-tag = 'table'
-attr = {'id':'LadderGrid'}
-nrl_ladder = generate_ladder(url, tag, attr, 'nrl')
+loop = asyncio.get_event_loop()
+
+nrl = 'http://www.nrl.com/telstrapremiership/nrlladder/tabid/10251/default.aspx'
+sl = 'http://www.rugby-league.com/superleague/tables'
+
+tasks = (fetch(nrl, 'NRL'), fetch(sl, 'Super League'))
+results = loop.run_until_complete(asyncio.gather(*tasks))
 
 
-url = 'http://www.rugby-league.com/superleague/tables'
-tag = 'table'
-attr = {'class':'table table-striped'}
-super_league_ladder = generate_ladder(url,tag,attr,'super_league')
-
-nrl_ladder.join()
-super_league_ladder.join()
-
-nrl_ladder = nrl_ladder.ret_val[0]
-super_league_ladder = super_league_ladder.ret_val[0]
-
-print(Ladder('NRL', nrl_ladder, '19'))
-print('\n')
-print(Ladder('Super League', super_league_ladder, '27'))
-
-
-
-
-
+for data, league in results:
+    if league == 'NRL':
+        attr = {'id':'LadderGrid'}
+        offset = 19
+    else:
+        attr = {'class':'table table-striped'}
+        offset = 27
+    
+    ladder = (generate_ladder(data, attr, league))
+    ladder = Ladder(league, ladder, offset)
+    print(ladder)
 
 
