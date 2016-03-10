@@ -3,19 +3,20 @@ import requests
 import asyncio
 
 
-class Team:
-    def __init__(self, rank, name, played, won, drawn, lost, gf, ga, pts, longest):
-            self.rank = rank
-            self.name = name
-            self.played = played
-            self.won = won
-            self.drawn = drawn
-            self.lost = lost
-            self.gf = gf
-            self.ga = ga
-            self.diff = str(int(gf)-int(ga))
-            self.pts = pts
-            self.longest = longest # longest team name
+class Structure:
+    _fields = []
+    def __init__(self, *args):
+        if len(args) != len(self._fields):
+            raise TypeError('Expected {} args but were given {}').format(len(self._fields),
+                                                                         len(args))
+        for name, val in zip(self._fields, args):
+            setattr(self, name, val)
+
+
+class Team(Structure):
+    _fields = ['rank','name','played','won',
+               'drawn','lost','gf','ga','diff',
+               'pts','longest']
 
     def __str__(self):
         str_format = '{:>3} {:<%s} {:>2} {:>2} {:>2} {:>2} {:>3} {:>3} {:>3} {:>2}' % (self.longest)
@@ -24,11 +25,8 @@ class Team:
                                  self.ga, self.diff, self.pts)
 
 
-class Ladder:
-    def __init__(self, league, ladder, offset):
-        self.league = league
-        self.ladder = ladder
-        self.offset = offset
+class Ladder(Structure):
+    _fields = ['league','ladder','offset']
 
     def __iter__(self):
         yield from self.ladder
@@ -45,16 +43,16 @@ class Ladder:
 
 def nrl_selector(attrs):
     (rank, club, played, won, drawn, lost, _, 
-    gf, ga, _, _ , _, pts, _, _) = (attr.get_text() for attr in attrs)
+    gf, ga, diff, _ , _, pts, _, _) = (attr.get_text() for attr in attrs)
         
-    team = Team(rank, club, played, won, drawn, lost, gf, ga, pts, 12)
+    team = Team(rank, club, played, won, drawn, lost, gf, ga, diff,pts, 12)
     return team
 
 
 def sl_selector(attrs):
     (rank, _, _, club, played, won, lost, drawn, 
-    gf, ga, _, pts) = (attr.get_text() for attr in attrs)
-    team = Team(rank+'.',club,played,won,drawn,lost,gf,ga,pts, 20)
+    gf, ga, diff, pts) = (attr.get_text() for attr in attrs)
+    team = Team(rank+'.',club,played,won,drawn,lost,gf,ga,diff,pts, 20)
     return team
 
 
@@ -94,5 +92,4 @@ for data, league in results:
     ladder = (generate_ladder(data, attr, league))
     ladder = Ladder(league, ladder, offset)
     print(ladder)
-
 
