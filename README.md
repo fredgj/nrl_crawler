@@ -1,5 +1,6 @@
 Rugby scraper
 =============
+Requires python 3.5.1
 
 At the moment this scraper doesnt do much, except for getting and printing the
 current table in both [National Rugby League (NRL)](http://www.nrl.com/) and 
