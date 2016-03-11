@@ -3,7 +3,7 @@ Rugby scraper
 Requires python 3.5.1
 
 At the moment this scraper doesnt do much, except for getting and printing the
-current table in both [National Rugby League (NRL)](http://www.nrl.com/) and 
+current table and scores from all rounds in both [National Rugby League (NRL)](http://www.nrl.com/) and 
 [Super League](http://www.rugby-league.com/superleague) to stdout. 
 Eventually it will be doing some more fancy stuff.
 
